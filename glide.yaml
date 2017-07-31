@@ -1,0 +1,10 @@
+package: github.com/alsx/enli-task
+import:
+- package: github.com/labstack/echo
+  version: v3.2.1
+- package: github.com/dgrijalva/jwt-go
+  version: v3.0.0
+- package: github.com/jmoiron/sqlx
+- package: github.com/go-sql-driver/mysql
+  version: v1.3
+- package: golang.org/x/oauth2
