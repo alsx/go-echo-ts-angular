@@ -26,6 +26,11 @@ Acceptance Critiries
 ```
 go build github.com/alsx/enli-task/src/api
 ```
+### create database
+```sh
+echo "CREATE DATABASE task" | mysql
+mysql task < src/api/schema.sql
+```
 ### run api server
 ```sh
 ./api -dsn 'user:pwd@tcp(127.0.0.1:3306)/task?parseTime=true'
