@@ -24,6 +24,8 @@ Acceptance Critiries
 
 ### build api server
 ```
+curl https://glide.sh/get | sh
+glide install
 go build github.com/alsx/enli-task/src/api
 ```
 ### create database
