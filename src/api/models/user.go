@@ -14,6 +14,7 @@ type User struct {
 	Name          string
 	Email         string
 	Password      string    `json:"-"`
+	FacebookID    string    `db:"facebook_id"`
 	FacebookToken string    `db:"facebook_token" json:"-"`
 	Created       time.Time `json:"-"`
 }
@@ -50,8 +51,8 @@ func NewUserManager(ctx echo.Context) UserManager {
 
 // Add - create new user.
 func (mgr UserManager) Add(user User) (int64, error) {
-	const query = "INSERT INTO `users` (`name`, `email`, `password`, `facebook_token`)  VALUES (?, ?, ?, ?)"
-	result := mgr.db.MustExec(query, user.Name, user.Email, user.Password, user.FacebookToken)
+	const query = "INSERT INTO `users` (`name`, `email`, `password`, `facebook_id`, `facebook_token`) VALUES (?, ?, ?, ?, ?)"
+	result := mgr.db.MustExec(query, user.Name, user.Email, user.Password, user.FacebookID, user.FacebookToken)
 
 	id, err := result.LastInsertId()
 	if err != nil {
@@ -60,10 +61,23 @@ func (mgr UserManager) Add(user User) (int64, error) {
 	return id, nil
 }
 
-// GetByEmail selects user by email
-func (mgr UserManager) GetByEmail(email string) (User, error) {
-	const query = "SELECT * from `users` WHERE email=?"
+// Update user.
+func (mgr UserManager) Update(user User) error {
+	const query = "UPDATE `users` SET `name`=?, `facebook_token` = ? WHERE `facebook_id` = ? "
+	mgr.db.MustExec(query, user.Name, user.FacebookID, user.FacebookToken)
+	return nil
+}
+
+// GetByEmailOrFacebookID selects user by email or facebook id
+func (mgr UserManager) GetByEmailOrFacebookID(email, facebookID string) (User, error) {
 	user := User{}
-	err := mgr.db.Get(&user, query, email)
+	var err error
+	if email != "" {
+		const query = "SELECT * from `users` WHERE email=? LIMIT 1"
+		err = mgr.db.Get(&user, query, email)
+	} else {
+		const query = "SELECT * from `users` WHERE facebook_id=? LIMIT 1"
+		err = mgr.db.Get(&user, query, facebookID)
+	}
 	return user, err
 }

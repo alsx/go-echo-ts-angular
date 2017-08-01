@@ -23,7 +23,7 @@ Acceptance Critiries
 # Results
 
 ### build api server
-```
+```sh
 curl https://glide.sh/get | sh
 glide install
 go build github.com/alsx/enli-task/src/api
@@ -36,6 +36,12 @@ mysql task < src/api/schema.sql
 ### run api server
 ```sh
 ./api -dsn 'user:pwd@tcp(127.0.0.1:3306)/task?parseTime=true'
+```
+
+### build web app
+```sh
+npm install
+ng build
 ```
 
 
@@ -57,38 +63,44 @@ curl http://localhost:1323/api/v1
 ```json
 {
     "Links": [
+        "signup/",
         "signin/",
-        "login/",
         "user/",
-        "fb-login/",
-        "fb-callback/"
+        "fb-signup/"
     ]
 }
 ```
 ### Register User
 ```sh
-curl -X POST -d 'name=John Doe' -d 'email=john@doe.com' -d 'password=Pa$$w0rd' http://localhost:1323/api/v1/signin
+curl -X POST -d '{"name": "John Doe", "email": "john@doe.com", "password": "Pa$$w0rd"}' http://localhost:1323/api/v1/signup
 ```
 ```json
 {
-    "ID": 12,
-    "Name": "John Doe",
-    "Email": "john@doe.com"
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJFbWFpbCI6ImpvaG5AZG9lpmNvbSIsImV4cCI6MTUwMTc5OTQ3MH0.nlPd4R3vWb-L5jYCrpvvOr5CZfmDgx5-202Wejx04NU"
 }
 ```
 ### Login
 ```sh
-curl -X POST -d 'email=john@doe.com' -d 'password=Pa$$w0rd' http://localhost:1323/api/v1/login
+curl -X POST -d '{"email": "john@doe.com", "password": "Pa$$w0rd"}' http://localhost:1323/api/v1/signin
 ```
 ```json
 {
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJFbWFpbCI6ImpvaG5AZG9lLmNvbSIsImV4cCI6MTUwMTc5OTQ3MH0.nlPd4R3vWb-L5jYCrpvvOr5CZfmDgx5-202Wejx04NU"
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJFbWFpbCI6ImpvaG5AZG9lpmNvbSIsImV4cCI6MTUwMTc5OTQ3MH0.nlPd4R3vWb-L5jYCrpvvOr5CZfmDgx5-202Wejx04NU"
 }
+```
+### Facebook Sign up
+```sh
+curl -X POST -d '{"token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJFbWFpbCI6IiIsIkZhY2Vib29rSUQiOoIxMDIxNDMxMTA3NjEyMTQ2OSIsImV4cCI6MTUwMTg3ODg1OX0.NCueMaVv98lY-wPTTiqjnsJhos6OIep_ZTaw04iFluk"}' http://localhost:1323/api/v1/fb-signup
+```
+```json
+{
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJFbWFpbCI6IiIsIkZhY2Vib29rSUQiOiIiLCJleHAiOjE1MDE4Nzg5MDN9.4XsqM0T5q6qKqBIziGfZ7fNJcdVxpCFnmbu2D7Lp1Vw"
+
 ```
 
 ### Call closed url with access token
 ```sh
-curlhttp://127.0.0.1:1323/api/v1/user/ -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJFbWFpbCI6ImpvaG5AZG9lLmNvbSIsImV4cCI6MTUwMTc5OTYxOH0.R93IlZDw-wChdE5ITTdkkCo24-rNI9Q0NjomFz8S8cY"
+curl http://127.0.0.1:1323/api/v1/user/ -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJFbWFpbCI6ImpvaG5AZG9lLmNgbSIsImV4cCI6MTUwMTc5OTYxOH0.R93IlZDw-wChdE5ITTdkkCo24-rNI9Q0NjomFz8S8cY"
 ```
 ```json
 {
@@ -97,4 +109,4 @@ curlhttp://127.0.0.1:1323/api/v1/user/ -H "Authorization: Bearer eyJhbGciOiJIUzI
     "Email": "john@doe.com"
 }
 ```
-### TBD: fb auth
+

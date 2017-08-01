@@ -1,0 +1,12 @@
+<div class="d-flex justify-content-end">
+  <button type="submit" class="btn btn-primary active pull-right" (click)="logOut()">Log out</button>
+</div>
+<div class="mx-auto w-50">
+  <h2> User Profile </h2>
+  <ul class="list-group">
+    <li class="list-group-item">ID: {{ user?.ID }}</li>
+    <li class="list-group-item">Name: {{ user?.Name || '--' }} </li>
+    <li class="list-group-item">Email: {{ user?.Email || '--' }}</li>
+    <li class="list-group-item">FacebookID: {{ user?.FacebookID || '--' }}</li>
+  </ul>
+</div>

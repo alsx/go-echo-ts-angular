@@ -41,6 +41,7 @@ func main() {
 	e.Pre(middleware.AddTrailingSlash())
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
+
 	e.Logger.SetLevel(log.DEBUG)
 	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
 		Level: 5,
@@ -51,13 +52,17 @@ func main() {
 	args := echo.Map{"dsn": *dsn, "secret": secret}
 	e.Use(configMiddleware(args))
 
+	e.Use(middleware.Static("dist"))
+	e.File("/fb-signin/", "dist/index.html")
+	e.File("/signin/", "dist/index.html")
+	e.File("/signup/", "dist/index.html")
+
 	// Unauthenticated route
 	e.GET("/api/", handlers.VersionsHandler.List)
 	e.GET("/api/v1/", handlers.IndexHandler.List)
+	e.POST("/api/v1/signup/", handlers.UserHandler.SignUp)
 	e.POST("/api/v1/signin/", handlers.UserHandler.SignIn)
-	e.POST("/api/v1/login/", handlers.UserHandler.LogIn)
-	e.GET("/api/v1/fb-login/", handlers.UserHandler.FacebookLogIn)
-	e.GET("/api/v1/fb-callback/", handlers.UserHandler.FacebookCallback)
+	e.POST("/api/v1/fb-signup/", handlers.UserHandler.FacebookSignUp)
 
 	// Restricted group
 	r := e.Group("/api/v1/user/")
@@ -69,5 +74,5 @@ func main() {
 	r.Use(middleware.JWTWithConfig(config))
 	r.GET("", handlers.UserHandler.Info)
 
-	e.Logger.Fatal(e.Start("127.0.0.1:1323"))
+	e.Logger.Fatal(e.Start("0.0.0.0:1323"))
 }

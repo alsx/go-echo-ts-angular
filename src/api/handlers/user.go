@@ -2,16 +2,11 @@ package handlers
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
-
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/facebook"
 
 	"github.com/alsx/enli-task/src/api/models"
 	jwt "github.com/dgrijalva/jwt-go"
@@ -20,19 +15,10 @@ import (
 
 // UserClaims contains user attributes and is extended with custom claims.
 type UserClaims struct {
-	Email string
+	Email      string
+	FacebookID string
 	jwt.StandardClaims
 }
-
-// TODO: move to settings
-var oauthConf = &oauth2.Config{
-	ClientID:     "329049282165041",
-	ClientSecret: "048b0ff413d0c063077ed7d47af3db55",
-	RedirectURL:  "http://example.com/api/v1/fb-callback/",
-	Scopes:       []string{"public_profile", "email"},
-	Endpoint:     facebook.Endpoint,
-}
-var oauthStateString = "thisshouldberandom"
 
 // Handler base for controller
 type Handler struct{}
@@ -45,96 +31,105 @@ func (h *Handler) Info(c echo.Context) error {
 	cxtUser := c.Get("user").(*jwt.Token)
 	claims := cxtUser.Claims.(*UserClaims)
 	email := claims.Email
+	facebookID := claims.FacebookID
 	userMgr := models.NewUserManager(c)
-	user, err := userMgr.GetByEmail(email)
+	user, err := userMgr.GetByEmailOrFacebookID(email, facebookID)
 	if err != nil {
 		return c.JSONPretty(http.StatusOK, echo.Map{"error": err}, "    ")
 	}
 	return c.JSONPretty(http.StatusOK, user, "    ")
 }
 
-// LogIn authenticate user in api
-func (h *Handler) LogIn(c echo.Context) error {
-	email := c.FormValue("email")
-	passwordSha256 := fmt.Sprintf("%x", sha256.Sum256([]byte(c.FormValue("password"))))
+// SignIn authenticate user in api
+func (h *Handler) SignIn(c echo.Context) error {
+	data := struct{ Email, Password string }{}
+	err := json.NewDecoder(c.Request().Body).Decode(&data)
+	passwordSha256 := fmt.Sprintf("%x", sha256.Sum256([]byte(data.Password)))
 	userMgr := models.NewUserManager(c)
-	user, err := userMgr.GetByEmail(email)
+	user, err := userMgr.GetByEmailOrFacebookID(data.Email, "")
 	if err != nil {
-		return echo.ErrUnauthorized
+		return c.JSONPretty(http.StatusInternalServerError, echo.Map{"error": err}, "    ")
 	}
 	if passwordSha256 == user.Password {
-		// Set custom claims
-		claims := &UserClaims{
-			user.Email,
-			jwt.StandardClaims{
-				ExpiresAt: time.Now().Add(time.Hour * 72).Unix(),
-			},
-		}
-		// Create token with claims
-		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-		// Generate encoded token and send it as response.
 		secret := []byte(c.Get("secret").(string))
-		t, err := token.SignedString(secret)
-		if err != nil {
-			return err
-		}
-		return c.JSONPretty(http.StatusOK, echo.Map{
-			"token": t,
-		}, "    ")
+		t := h.jwtToken(user.Email, user.FacebookID, secret)
+		return c.JSONPretty(http.StatusOK, echo.Map{"token": t}, "    ")
 	}
 	return echo.ErrUnauthorized
 }
 
-// SignIn register user using email and password.
-func (h *Handler) SignIn(c echo.Context) error {
-	email := c.FormValue("email")
-	if email == "" {
+func (h *Handler) jwtToken(email, fbID string, secret []byte) string {
+	// Set custom claims
+	claims := &UserClaims{
+		email,
+		fbID,
+		jwt.StandardClaims{
+			ExpiresAt: time.Now().Add(time.Hour * 72).Unix(),
+		},
+	}
+	// Create token with claims
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	// Generate encoded token and send it as response.
+	t, _ := token.SignedString(secret)
+	return t
+}
+
+// SignUp register user using email and password.
+func (h *Handler) SignUp(c echo.Context) error {
+	data := struct{ Name, Email, Password string }{}
+	err := json.NewDecoder(c.Request().Body).Decode(&data)
+	if data.Email == "" {
 		return c.JSONPretty(http.StatusBadRequest, echo.Map{"error": "Invalid email."}, "    ")
 	}
-	name := c.FormValue("name")
 	// sha256 of password
-	passwordSha256 := fmt.Sprintf("%x", sha256.Sum256([]byte(c.FormValue("password"))))
+	passwordSha256 := fmt.Sprintf("%x", sha256.Sum256([]byte(data.Password)))
 	user := models.User{
-		Email:    email,
-		Name:     name,
+		Email:    data.Email,
+		Name:     data.Name,
 		Password: passwordSha256,
 	}
 
 	userMgr := models.NewUserManager(c)
-	id, err := userMgr.Add(user)
+	_, err = userMgr.Add(user)
+	if err != nil {
+		return c.JSONPretty(http.StatusInternalServerError, echo.Map{"error": err}, "    ")
+	}
+	secret := []byte(c.Get("secret").(string))
+	t := h.jwtToken(user.Email, user.FacebookID, secret)
+	return c.JSONPretty(http.StatusOK, echo.Map{"token": t}, "    ")
+}
+
+// FacebookSignUp login user with facebook account
+func (h *Handler) FacebookSignUp(c echo.Context) error {
+	data := struct{ FacebookToken string }{}
+	err := json.NewDecoder(c.Request().Body).Decode(&data)
 	if err != nil {
 		return c.JSONPretty(http.StatusInternalServerError, echo.Map{"error": err}, "    ")
 	}
 
-	user.ID = id
-	return c.JSONPretty(http.StatusCreated, user, "    ")
-}
-
-// FacebookLogIn login user with facebook account
-func (h *Handler) FacebookLogIn(c echo.Context) error {
-
-	URL, err := url.Parse(oauthConf.Endpoint.AuthURL)
+	resp, _ := http.Get("https://graph.facebook.com/me?access_token=" + url.QueryEscape(data.FacebookToken))
+	userData := struct{ ID, Name string }{}
+	err = json.NewDecoder(resp.Body).Decode(&userData)
 	if err != nil {
-		log.Fatal("Parse: ", err)
+		return c.JSONPretty(http.StatusInternalServerError, echo.Map{"error": err}, "    ")
 	}
-	parameters := url.Values{}
-	parameters.Add("client_id", oauthConf.ClientID)
-	parameters.Add("scope", strings.Join(oauthConf.Scopes, " "))
-	parameters.Add("redirect_uri", oauthConf.RedirectURL)
-	parameters.Add("response_type", "code")
-	parameters.Add("state", oauthStateString)
-	URL.RawQuery = parameters.Encode()
-	url := URL.String()
-	return c.JSONPretty(http.StatusOK, echo.Map{"redirect_url": url}, "    ")
-}
+	c.Logger().Debugf("userData: %v", userData)
+	user := models.User{
+		Name:          userData.Name,
+		FacebookID:    userData.ID,
+		FacebookToken: data.FacebookToken,
+	}
 
-// FacebookCallback receive token from fb.
-// TODO: add validation, save name, email and token into db.
-func (h *Handler) FacebookCallback(c echo.Context) error {
-	code := c.FormValue("code")
-	token, _ := oauthConf.Exchange(oauth2.NoContext, code)
-	resp, _ := http.Get("https://graph.facebook.com/me?access_token=" + url.QueryEscape(token.AccessToken))
-	response, _ := ioutil.ReadAll(resp.Body)
-	return c.JSONPretty(http.StatusOK, response, "    ")
+	userMgr := models.NewUserManager(c)
+
+	if _, err := userMgr.GetByEmailOrFacebookID("", userData.ID); err == nil {
+		_ = userMgr.Update(user)
+	} else if _, err = userMgr.Add(user); err != nil {
+		return c.JSONPretty(http.StatusInternalServerError, echo.Map{"error": err}, "    ")
+	}
+
+	secret := []byte(c.Get("secret").(string))
+	t := h.jwtToken("", userData.ID, secret)
+	return c.JSONPretty(http.StatusOK, echo.Map{"token": t}, "    ")
 }

@@ -13,7 +13,7 @@ type Index struct {
 
 // NewIndex initate API Index list
 func NewIndex() Index {
-	return Index{[]string{"signin/", "login/", "user/", "fb-login/", "fb-callback/"}}
+	return Index{[]string{"signup/", "signin/", "user/", "fb-signup/"}}
 }
 
 // IndexHandler contains methods to show index of api endpoints
